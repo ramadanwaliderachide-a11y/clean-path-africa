@@ -142,3 +142,48 @@
     color: var(--color-foreground);
   }
 }
+
+/* CleanConnect global styles */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap");
+
+.cc-root {
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+.cc-root h1, .cc-root h2, .cc-root h3, .cc-root h4 {
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.cc-gradient {
+  background: linear-gradient(135deg, #0D5E3E 0%, #0A2342 100%);
+}
+
+.cc-snap {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  height: 100vh;
+  overflow-y: scroll;
+}
+.cc-slide {
+  scroll-snap-align: start;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+}
+
+@keyframes ccFadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cc-fade-in-up {
+  animation: ccFadeInUp 0.7s ease-out both;
+}
+
+.cc-glass {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.15);
+}
