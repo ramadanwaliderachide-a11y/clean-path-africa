@@ -1,26 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import PitchDeck from "@/components/cleanconnect/PitchDeck";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "CleanConnect — Gestão Ambiental em Moçambique" },
+      { name: "description", content: "Transformar Moçambique num país mais limpo, um telemóvel de cada vez. Recolha on-demand, marketplace de recicláveis e Score Verde." },
+      { property: "og:title", content: "CleanConnect — Gestão Ambiental em Moçambique" },
+      { property: "og:description", content: "Plataforma mobile-first de gestão ambiental para PME em Moçambique." },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return <PitchDeck />;
 }
