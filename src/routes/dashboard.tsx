@@ -8,6 +8,7 @@ import {
   addSchedule,
   useStoreData,
 } from "@/lib/cc-auth";
+import { downloadCertificatePdf } from "@/lib/cc-certificate-pdf";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -324,6 +325,7 @@ function History() {
 
 function Certs() {
   const certs = useStoreData(getCertificates);
+  const user = useUser();
   return (
     <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm">
       <h1 className="text-2xl font-black">Certificados</h1>
@@ -341,7 +343,7 @@ function Certs() {
             <h3 className="mt-3 font-bold">{c.month}</h3>
             <p className="text-sm text-[#0A2342]/60">Score: {c.score}/100</p>
             <button
-              onClick={() => alert(`Download do certificado de ${c.month} (simulado)`)}
+              onClick={() => user && downloadCertificatePdf(c, user)}
               className="mt-4 w-full bg-[#0D5E3E] text-white font-semibold py-2 rounded-xl hover:bg-[#1A8B5C] transition"
             >
               Download PDF
