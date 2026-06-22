@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { team, services, plans, CONTACT_EMAIL } from "@/data/cleanconnect";
+import { useUser } from "@/lib/cc-auth";
+import InstallButton from "./InstallButton";
 
 export default function AppPage() {
   const [open, setOpen] = useState(false);
+  const user = useUser();
   const nav = [
     { href: "#servicos", label: "Serviços" },
     { href: "#planos", label: "Planos" },
@@ -26,6 +29,22 @@ export default function AppPage() {
                 {n.label}
               </a>
             ))}
+            <InstallButton className="bg-[#F5A623]/15 text-[#0A2342] font-semibold px-3 py-2 rounded-xl hover:bg-[#F5A623]/30 transition text-sm" />
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="bg-[#F5A623] text-[#0A2342] font-semibold px-4 py-2 rounded-xl hover:scale-105 transition"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="border-2 border-[#0D5E3E] text-[#0D5E3E] font-semibold px-4 py-2 rounded-xl hover:bg-[#0D5E3E] hover:text-white transition"
+              >
+                Entrar
+              </Link>
+            )}
             <Link
               to="/"
               className="bg-[#0D5E3E] text-white font-semibold px-4 py-2 rounded-xl hover:bg-[#1A8B5C] transition"
@@ -48,6 +67,13 @@ export default function AppPage() {
                 {n.label}
               </a>
             ))}
+            <InstallButton className="bg-[#F5A623]/15 text-[#0A2342] font-semibold px-4 py-2 rounded-xl text-center" />
+            <Link
+              to={user ? "/dashboard" : "/login"}
+              className="border-2 border-[#0D5E3E] text-[#0D5E3E] font-semibold px-4 py-2 rounded-xl text-center"
+            >
+              {user ? "Dashboard" : "Entrar"}
+            </Link>
             <Link to="/" className="bg-[#0D5E3E] text-white font-semibold px-4 py-2 rounded-xl text-center">
               Pitch Deck
             </Link>
