@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-export type CCUser = { name: string; email: string; phone?: string };
+export type CCRole = "admin" | "user";
+export type CCUser = { name: string; email: string; phone?: string; role?: CCRole };
 export type CCSchedule = {
   id: string;
   type: string;
@@ -12,12 +13,17 @@ export type CCSchedule = {
   status: "Pendente" | "Concluído" | "Cancelado";
   value: string;
   createdAt: string;
+  userEmail?: string;
+  userName?: string;
 };
 export type CCCertificate = {
   id: string;
   month: string;
   score: number;
   level: "Bronze" | "Prata" | "Ouro";
+  userEmail?: string;
+  userName?: string;
+  issuedAt?: string;
 };
 
 const USER_KEY = "cc:user";
@@ -26,6 +32,23 @@ const SCHED_KEY = "cc:schedules";
 const CERT_KEY = "cc:certs";
 
 type StoredUser = CCUser & { password: string };
+
+const ADMIN_EMAIL = "admin@cleanconnect.mz";
+const ADMIN_PASSWORD = "admin123";
+
+function ensureAdmin() {
+  const users = safeGet<StoredUser[]>(USERS_KEY, []);
+  if (!users.some((u) => u.email.toLowerCase() === ADMIN_EMAIL)) {
+    users.push({
+      name: "Administrador",
+      email: ADMIN_EMAIL,
+      phone: "",
+      role: "admin",
+      password: ADMIN_PASSWORD,
+    });
+    safeSet(USERS_KEY, users);
+  }
+}
 
 function safeGet<T>(k: string, fb: T): T {
   if (typeof window === "undefined") return fb;
@@ -48,10 +71,11 @@ export function getUser(): CCUser | null {
 }
 
 export function login(email: string, password: string): CCUser {
+  ensureAdmin();
   const users = safeGet<StoredUser[]>(USERS_KEY, []);
   const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
   if (!u || u.password !== password) throw new Error("Credenciais inválidas");
-  const pub: CCUser = { name: u.name, email: u.email, phone: u.phone };
+  const pub: CCUser = { name: u.name, email: u.email, phone: u.phone, role: u.role ?? "user" };
   safeSet(USER_KEY, pub);
   window.dispatchEvent(new Event("cc:auth"));
   return pub;
@@ -61,9 +85,9 @@ export function register(input: CCUser & { password: string }): CCUser {
   const users = safeGet<StoredUser[]>(USERS_KEY, []);
   if (users.some((x) => x.email.toLowerCase() === input.email.toLowerCase()))
     throw new Error("Já existe uma conta com este email");
-  users.push(input);
+  users.push({ ...input, role: "user" });
   safeSet(USERS_KEY, users);
-  const pub: CCUser = { name: input.name, email: input.email, phone: input.phone };
+  const pub: CCUser = { name: input.name, email: input.email, phone: input.phone, role: "user" };
   safeSet(USER_KEY, pub);
   window.dispatchEvent(new Event("cc:auth"));
   return pub;
@@ -95,22 +119,63 @@ export function getSchedules(): CCSchedule[] {
 }
 export function addSchedule(s: Omit<CCSchedule, "id" | "status" | "value" | "createdAt">) {
   const list = getSchedules();
+  const u = getUser();
   list.unshift({
     ...s,
     id: crypto.randomUUID(),
     status: "Pendente",
     value: "250 MZN",
     createdAt: new Date().toISOString(),
+    userEmail: s.userEmail ?? u?.email,
+    userName: s.userName ?? u?.name,
   });
   safeSet(SCHED_KEY, list);
+  window.dispatchEvent(new Event("cc:data"));
+}
+
+export function updateScheduleStatus(id: string, status: CCSchedule["status"]) {
+  const list = getSchedules().map((s) => (s.id === id ? { ...s, status } : s));
+  safeSet(SCHED_KEY, list);
+  window.dispatchEvent(new Event("cc:data"));
+}
+export function deleteSchedule(id: string) {
+  safeSet(SCHED_KEY, getSchedules().filter((s) => s.id !== id));
   window.dispatchEvent(new Event("cc:data"));
 }
 export function getCertificates(): CCCertificate[] {
   return safeGet<CCCertificate[]>(CERT_KEY, []);
 }
 
-function ensureSeed() {
-  // No seed data — novos utilizadores começam do zero.
+export function issueCertificate(c: Omit<CCCertificate, "id" | "issuedAt">) {
+  const list = getCertificates();
+  list.unshift({ ...c, id: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+  safeSet(CERT_KEY, list);
+  window.dispatchEvent(new Event("cc:data"));
+}
+export function deleteCertificate(id: string) {
+  safeSet(CERT_KEY, getCertificates().filter((c) => c.id !== id));
+  window.dispatchEvent(new Event("cc:data"));
+}
+
+export function getAllUsers(): CCUser[] {
+  ensureAdmin();
+  return safeGet<StoredUser[]>(USERS_KEY, []).map((u) => ({
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    role: u.role ?? "user",
+  }));
+}
+export function deleteUser(email: string) {
+  const users = safeGet<StoredUser[]>(USERS_KEY, []).filter(
+    (u) => u.email.toLowerCase() !== email.toLowerCase(),
+  );
+  safeSet(USERS_KEY, users);
+  window.dispatchEvent(new Event("cc:data"));
+}
+
+export function isAdmin(u: CCUser | null) {
+  return u?.role === "admin";
 }
 
 export function useStoreData<T>(fn: () => T): T {

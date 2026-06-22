@@ -99,6 +99,10 @@ function LoginPage() {
         <p className="text-center text-xs text-[#0A2342]/50 mt-6">
           Os dados são guardados localmente no seu dispositivo (demo).
         </p>
+        <div className="mt-4 text-center text-xs text-[#0A2342]/70 bg-[#F5A623]/10 border border-[#F5A623]/30 rounded-xl p-3">
+          <p className="font-bold text-[#0A2342]">Conta de administrador (demo)</p>
+          <p>admin@cleanconnect.mz · admin123</p>
+        </div>
         <p className="text-center mt-4">
           <Link to="/app" className="text-sm text-[#0D5E3E] font-semibold hover:underline">
             ← Voltar à plataforma
