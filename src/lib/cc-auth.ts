@@ -65,7 +65,6 @@ export function register(input: CCUser & { password: string }): CCUser {
   safeSet(USERS_KEY, users);
   const pub: CCUser = { name: input.name, email: input.email, phone: input.phone };
   safeSet(USER_KEY, pub);
-  ensureSeed();
   window.dispatchEvent(new Event("cc:auth"));
   return pub;
 }
@@ -111,20 +110,7 @@ export function getCertificates(): CCCertificate[] {
 }
 
 function ensureSeed() {
-  if (getSchedules().length === 0) {
-    safeSet<CCSchedule[]>(SCHED_KEY, [
-      { id: "s1", type: "Resíduos sólidos", qty: "120 kg", date: "2026-06-10", time: "09:00", location: "Maputo, Polana", status: "Concluído", value: "300 MZN", createdAt: "" },
-      { id: "s2", type: "Recicláveis", qty: "60 kg", date: "2026-06-04", time: "14:30", location: "Maputo, Polana", status: "Concluído", value: "150 MZN", createdAt: "" },
-      { id: "s3", type: "Orgânicos", qty: "40 kg", date: "2026-05-28", time: "08:00", location: "Maputo, Polana", status: "Cancelado", value: "0 MZN", createdAt: "" },
-    ]);
-  }
-  if (getCertificates().length === 0) {
-    safeSet<CCCertificate[]>(CERT_KEY, [
-      { id: "c1", month: "Junho 2026", score: 78, level: "Prata" },
-      { id: "c2", month: "Maio 2026", score: 72, level: "Prata" },
-      { id: "c3", month: "Abril 2026", score: 65, level: "Bronze" },
-    ]);
-  }
+  // No seed data — novos utilizadores começam do zero.
 }
 
 export function useStoreData<T>(fn: () => T): T {

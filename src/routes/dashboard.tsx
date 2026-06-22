@@ -121,7 +121,7 @@ function Dashboard() {
 function Overview() {
   const schedules = useStoreData(getSchedules);
   const certs = useStoreData(getCertificates);
-  const score = 78;
+  const score = 0;
   const next = schedules.find((s) => s.status === "Pendente") ?? schedules[0];
 
   return (
@@ -134,7 +134,7 @@ function Overview() {
           <div>
             <p className="text-sm text-[#0A2342]/60">Score Verde</p>
             <p className="text-2xl font-black text-[#0D5E3E]">{score}/100</p>
-            <p className="text-xs text-[#1A8B5C] font-semibold">Nível Prata</p>
+            <p className="text-xs text-[#1A8B5C] font-semibold">Sem nível</p>
           </div>
         </div>
 
