@@ -7,6 +7,7 @@ import {
   getCertificates,
   addSchedule,
   useStoreData,
+  isAdmin,
 } from "@/lib/cc-auth";
 import { downloadCertificatePdf } from "@/lib/cc-certificate-pdf";
 
@@ -66,6 +67,14 @@ function Dashboard() {
             <Link to="/" className="font-black text-lg text-[#0D5E3E]">CleanConnect</Link>
           </div>
           <div className="flex items-center gap-3">
+            {isAdmin(user) && (
+              <Link
+                to="/admin"
+                className="text-xs font-black bg-[#F5A623] text-[#0A2342] px-3 py-1.5 rounded-full hover:scale-105 transition"
+              >
+                ADMIN
+              </Link>
+            )}
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0D5E3E] to-[#0A2342] text-white text-sm font-black flex items-center justify-center border-2 border-[#F5A623]">
                 {user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
