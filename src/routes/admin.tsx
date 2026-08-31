@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   useUser,
   logout,
@@ -12,11 +12,19 @@ import {
   deleteCertificate,
   deleteUser,
   useStoreData,
+  getUser,
   isAdmin,
   type CCSchedule,
 } from "@/lib/cc-auth";
 
 export const Route = createFileRoute("/admin")({
+  // Guard por role: corre antes de qualquer render — não-admins nunca vêem o painel.
+  beforeLoad: () => {
+    if (typeof window === "undefined") return; // SSR: sem sessão; o cliente re-executa o guard
+    const u = getUser();
+    if (!u) throw redirect({ to: "/login" });
+    if (!isAdmin(u)) throw redirect({ to: "/dashboard" });
+  },
   head: () => ({
     meta: [
       { title: "Administração — CleanConnect" },
@@ -32,20 +40,8 @@ function AdminPage() {
   const user = useUser();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!user) {
-      navigate({ to: "/login" });
-    } else if (!isAdmin(user)) {
-      navigate({ to: "/dashboard" });
-    } else {
-      setReady(true);
-    }
-  }, [user, navigate]);
-
-  if (!ready || !user) {
+  if (!user || !isAdmin(user)) {
     return (
       <div className="cc-root min-h-screen flex items-center justify-center bg-[#F9FAFB]">
         <p className="text-[#0A2342]/60">A carregar...</p>
