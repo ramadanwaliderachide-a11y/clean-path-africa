@@ -133,12 +133,18 @@ export function addSchedule(s: Omit<CCSchedule, "id" | "status" | "value" | "cre
   window.dispatchEvent(new Event("cc:data"));
 }
 
+function requireAdmin() {
+  if (!isAdmin(getUser())) throw new Error("Acesso negado: apenas administradores");
+}
+
 export function updateScheduleStatus(id: string, status: CCSchedule["status"]) {
+  requireAdmin();
   const list = getSchedules().map((s) => (s.id === id ? { ...s, status } : s));
   safeSet(SCHED_KEY, list);
   window.dispatchEvent(new Event("cc:data"));
 }
 export function deleteSchedule(id: string) {
+  requireAdmin();
   safeSet(SCHED_KEY, getSchedules().filter((s) => s.id !== id));
   window.dispatchEvent(new Event("cc:data"));
 }
@@ -147,17 +153,20 @@ export function getCertificates(): CCCertificate[] {
 }
 
 export function issueCertificate(c: Omit<CCCertificate, "id" | "issuedAt">) {
+  requireAdmin();
   const list = getCertificates();
   list.unshift({ ...c, id: crypto.randomUUID(), issuedAt: new Date().toISOString() });
   safeSet(CERT_KEY, list);
   window.dispatchEvent(new Event("cc:data"));
 }
 export function deleteCertificate(id: string) {
+  requireAdmin();
   safeSet(CERT_KEY, getCertificates().filter((c) => c.id !== id));
   window.dispatchEvent(new Event("cc:data"));
 }
 
 export function getAllUsers(): CCUser[] {
+  requireAdmin();
   ensureAdmin();
   return safeGet<StoredUser[]>(USERS_KEY, []).map((u) => ({
     name: u.name,
