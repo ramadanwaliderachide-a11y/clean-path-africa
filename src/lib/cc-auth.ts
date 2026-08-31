@@ -176,6 +176,7 @@ export function getAllUsers(): CCUser[] {
   }));
 }
 export function deleteUser(email: string) {
+  requireAdmin();
   const users = safeGet<StoredUser[]>(USERS_KEY, []).filter(
     (u) => u.email.toLowerCase() !== email.toLowerCase(),
   );
