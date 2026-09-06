@@ -16,6 +16,7 @@ import {
   isAdmin,
   type CCSchedule,
 } from "@/lib/cc-auth";
+import { DriversPanel, RoutesPanel } from "@/components/cleanconnect/FleetPanels";
 
 export const Route = createFileRoute("/admin")({
   // Guard por role: corre antes de qualquer render — não-admins nunca vêem o painel.
@@ -34,7 +35,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "overview" | "users" | "schedules" | "certs";
+type Tab = "overview" | "users" | "schedules" | "drivers" | "routes" | "certs";
 
 function AdminPage() {
   const user = useUser();
@@ -53,6 +54,8 @@ function AdminPage() {
     { id: "overview", label: "Visão Geral", icon: "📊" },
     { id: "users", label: "Utilizadores", icon: "👥" },
     { id: "schedules", label: "Recolhas", icon: "🚛" },
+    { id: "drivers", label: "Motoristas", icon: "🧑‍✈️" },
+    { id: "routes", label: "Rotas", icon: "🗺️" },
     { id: "certs", label: "Certificados", icon: "📜" },
   ];
 
@@ -103,6 +106,8 @@ function AdminPage() {
           {tab === "overview" && <AdminOverview />}
           {tab === "users" && <UsersPanel />}
           {tab === "schedules" && <SchedulesPanel />}
+          {tab === "drivers" && <DriversPanel />}
+          {tab === "routes" && <RoutesPanel />}
           {tab === "certs" && <CertsPanel />}
         </main>
       </div>
