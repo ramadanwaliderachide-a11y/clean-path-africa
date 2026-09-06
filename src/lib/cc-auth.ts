@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type CCRole = "admin" | "user";
-export type CCUser = { name: string; email: string; phone?: string; role?: CCRole };
+export type CCUser = { name: string; email: string; phone?: string };
 export type CCSchedule = {
   id: string;
   type: string;
@@ -13,17 +12,12 @@ export type CCSchedule = {
   status: "Pendente" | "Concluído" | "Cancelado";
   value: string;
   createdAt: string;
-  userEmail?: string;
-  userName?: string;
 };
 export type CCCertificate = {
   id: string;
   month: string;
   score: number;
   level: "Bronze" | "Prata" | "Ouro";
-  userEmail?: string;
-  userName?: string;
-  issuedAt?: string;
 };
 
 const USER_KEY = "cc:user";
@@ -32,23 +26,6 @@ const SCHED_KEY = "cc:schedules";
 const CERT_KEY = "cc:certs";
 
 type StoredUser = CCUser & { password: string };
-
-const ADMIN_EMAIL = "admin@cleanconnect.mz";
-const ADMIN_PASSWORD = "admin123";
-
-function ensureAdmin() {
-  const users = safeGet<StoredUser[]>(USERS_KEY, []);
-  if (!users.some((u) => u.email.toLowerCase() === ADMIN_EMAIL)) {
-    users.push({
-      name: "Administrador",
-      email: ADMIN_EMAIL,
-      phone: "",
-      role: "admin",
-      password: ADMIN_PASSWORD,
-    });
-    safeSet(USERS_KEY, users);
-  }
-}
 
 function safeGet<T>(k: string, fb: T): T {
   if (typeof window === "undefined") return fb;
@@ -71,11 +48,10 @@ export function getUser(): CCUser | null {
 }
 
 export function login(email: string, password: string): CCUser {
-  ensureAdmin();
   const users = safeGet<StoredUser[]>(USERS_KEY, []);
   const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
   if (!u || u.password !== password) throw new Error("Credenciais inválidas");
-  const pub: CCUser = { name: u.name, email: u.email, phone: u.phone, role: u.role ?? "user" };
+  const pub: CCUser = { name: u.name, email: u.email, phone: u.phone };
   safeSet(USER_KEY, pub);
   window.dispatchEvent(new Event("cc:auth"));
   return pub;
@@ -85,10 +61,11 @@ export function register(input: CCUser & { password: string }): CCUser {
   const users = safeGet<StoredUser[]>(USERS_KEY, []);
   if (users.some((x) => x.email.toLowerCase() === input.email.toLowerCase()))
     throw new Error("Já existe uma conta com este email");
-  users.push({ ...input, role: "user" });
+  users.push(input);
   safeSet(USERS_KEY, users);
-  const pub: CCUser = { name: input.name, email: input.email, phone: input.phone, role: "user" };
+  const pub: CCUser = { name: input.name, email: input.email, phone: input.phone };
   safeSet(USER_KEY, pub);
+  ensureSeed();
   window.dispatchEvent(new Event("cc:auth"));
   return pub;
 }
@@ -119,81 +96,35 @@ export function getSchedules(): CCSchedule[] {
 }
 export function addSchedule(s: Omit<CCSchedule, "id" | "status" | "value" | "createdAt">) {
   const list = getSchedules();
-  const u = getUser();
   list.unshift({
     ...s,
     id: crypto.randomUUID(),
     status: "Pendente",
     value: "250 MZN",
     createdAt: new Date().toISOString(),
-    userEmail: s.userEmail ?? u?.email,
-    userName: s.userName ?? u?.name,
   });
   safeSet(SCHED_KEY, list);
-  window.dispatchEvent(new Event("cc:data"));
-}
-
-function requireAdmin() {
-  if (!isAdmin(getUser())) throw new Error("Acesso negado: apenas administradores");
-}
-
-export function updateScheduleStatus(id: string, status: CCSchedule["status"]) {
-  requireAdmin();
-  const list = getSchedules().map((s) => (s.id === id ? { ...s, status } : s));
-  safeSet(SCHED_KEY, list);
-  window.dispatchEvent(new Event("cc:data"));
-}
-/** Marca uma recolha como concluída a partir do rastreamento da frota (sem exigir admin). */
-export function markScheduleCollected(id: string) {
-  const list = getSchedules();
-  if (!list.some((s) => s.id === id && s.status !== "Concluído")) return;
-  safeSet(SCHED_KEY, list.map((s) => (s.id === id ? { ...s, status: "Concluído" as const } : s)));
-  window.dispatchEvent(new Event("cc:data"));
-}
-
-export function deleteSchedule(id: string) {
-  requireAdmin();
-  safeSet(SCHED_KEY, getSchedules().filter((s) => s.id !== id));
   window.dispatchEvent(new Event("cc:data"));
 }
 export function getCertificates(): CCCertificate[] {
   return safeGet<CCCertificate[]>(CERT_KEY, []);
 }
 
-export function issueCertificate(c: Omit<CCCertificate, "id" | "issuedAt">) {
-  requireAdmin();
-  const list = getCertificates();
-  list.unshift({ ...c, id: crypto.randomUUID(), issuedAt: new Date().toISOString() });
-  safeSet(CERT_KEY, list);
-  window.dispatchEvent(new Event("cc:data"));
-}
-export function deleteCertificate(id: string) {
-  requireAdmin();
-  safeSet(CERT_KEY, getCertificates().filter((c) => c.id !== id));
-  window.dispatchEvent(new Event("cc:data"));
-}
-
-export function getAllUsers(): CCUser[] {
-  requireAdmin();
-  ensureAdmin();
-  return safeGet<StoredUser[]>(USERS_KEY, []).map((u) => ({
-    name: u.name,
-    email: u.email,
-    phone: u.phone,
-    role: u.role ?? "user",
-  }));
-}
-export function deleteUser(email: string) {
-  requireAdmin();
-  const users = safeGet<StoredUser[]>(USERS_KEY, []).filter(
-    (u) => u.email.toLowerCase() !== email.toLowerCase(),
-  );
-  safeSet(USERS_KEY, users);
-  window.dispatchEvent(new Event("cc:data"));
-}
-
-export function isAdmin(u: CCUser | null) {
-  return u?.role === "admin";
+function ensureSeed() {
+  if (getSchedules().length === 0) {
+    safeSet<CCSchedule[]>(SCHED_KEY, [
+      { id: "s1", type: "Resíduos sólidos", qty: "120 kg", date: "2026-06-10", time: "09:00", location: "Maputo, Polana", status: "Concluído", value: "300 MZN", createdAt: "" },
+      { id: "s2", type: "Recicláveis", qty: "60 kg", date: "2026-06-04", time: "14:30", location: "Maputo, Polana", status: "Concluído", value: "150 MZN", createdAt: "" },
+      { id: "s3", type: "Orgânicos", qty: "40 kg", date: "2026-05-28", time: "08:00", location: "Maputo, Polana", status: "Cancelado", value: "0 MZN", createdAt: "" },
+    ]);
+  }
+  if (getCertificates().length === 0) {
+    safeSet<CCCertificate[]>(CERT_KEY, [
+      { id: "c1", month: "Junho 2026", score: 78, level: "Prata" },
+      { id: "c2", month: "Maio 2026", score: 72, level: "Prata" },
+      { id: "c3", month: "Abril 2026", score: 65, level: "Bronze" },
+    ]);
+  }
 }
 
 export function useStoreData<T>(fn: () => T): T {

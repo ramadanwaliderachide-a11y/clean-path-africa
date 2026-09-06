@@ -7,11 +7,7 @@ import {
   getCertificates,
   addSchedule,
   useStoreData,
-  isAdmin,
 } from "@/lib/cc-auth";
-import { downloadCertificatePdf } from "@/lib/cc-certificate-pdf";
-import { MozMap } from "@/components/cleanconnect/MozMap";
-import { getRoutes, routeProgress, useLiveTracking, driverById } from "@/lib/cc-fleet";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -69,14 +65,6 @@ function Dashboard() {
             <Link to="/" className="font-black text-lg text-[#0D5E3E]">CleanConnect</Link>
           </div>
           <div className="flex items-center gap-3">
-            {isAdmin(user) && (
-              <Link
-                to="/admin"
-                className="text-xs font-black bg-[#F5A623] text-[#0A2342] px-3 py-1.5 rounded-full hover:scale-105 transition"
-              >
-                ADMIN
-              </Link>
-            )}
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0D5E3E] to-[#0A2342] text-white text-sm font-black flex items-center justify-center border-2 border-[#F5A623]">
                 {user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
@@ -132,7 +120,7 @@ function Dashboard() {
 function Overview() {
   const schedules = useStoreData(getSchedules);
   const certs = useStoreData(getCertificates);
-  const score = 0;
+  const score = 78;
   const next = schedules.find((s) => s.status === "Pendente") ?? schedules[0];
 
   return (
@@ -145,7 +133,7 @@ function Overview() {
           <div>
             <p className="text-sm text-[#0A2342]/60">Score Verde</p>
             <p className="text-2xl font-black text-[#0D5E3E]">{score}/100</p>
-            <p className="text-xs text-[#1A8B5C] font-semibold">Sem nível</p>
+            <p className="text-xs text-[#1A8B5C] font-semibold">Nível Prata</p>
           </div>
         </div>
 
@@ -154,72 +142,10 @@ function Overview() {
         <StatCard label="Certificados" value={String(certs.length)} sub="emitidos" icon="📜" />
       </div>
 
-      <TrackingCard />
-
       <div className="bg-gradient-to-br from-[#0D5E3E] to-[#0A2342] text-white rounded-2xl p-6 md:p-8">
         <h2 className="text-xl font-black">Continue a melhorar o seu Score Verde</h2>
         <p className="mt-2 text-white/85 text-sm">
           Agende recolhas regulares e separe recicláveis para subir para o nível Ouro.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function TrackingCard() {
-  const user = useUser();
-  const schedules = useStoreData(getSchedules);
-  const mine = schedules.filter((s) => !user || !s.userEmail || s.userEmail === user.email);
-  const ids = mine.map((s) => s.id);
-  const routes = useStoreData(getRoutes).filter((r) => r.stops.some((s) => s.scheduleId && ids.includes(s.scheduleId)));
-  const [sel, setSel] = useState<string | null>(null);
-  useLiveTracking(routes.some((r) => r.status === "Em curso"));
-
-  const current = routes.find((r) => r.id === sel) ?? routes[0] ?? null;
-
-  if (!current) {
-    return (
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h2 className="font-black text-lg">Rastreio da recolha</h2>
-        <p className="text-sm text-[#0A2342]/60 mt-1">
-          Assim que a sua recolha for atribuída a uma viatura, poderá acompanhá-la aqui no mapa.
-        </p>
-      </div>
-    );
-  }
-
-  const driver = driverById(current.driverId);
-
-  return (
-    <div className="space-y-3">
-      {routes.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {routes.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setSel(r.id)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-                current.id === r.id ? "bg-[#0D5E3E] text-white border-[#0D5E3E]" : "border-[#0A2342]/15"
-              }`}
-            >
-              {r.code}
-            </button>
-          ))}
-        </div>
-      )}
-      <MozMap route={current} />
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
-        <p className="text-sm font-semibold">
-          {current.name} · {current.zone}
-        </p>
-        <p className="text-xs text-[#0A2342]/60 mt-1">
-          Viatura: {driver ? `${driver.vehicleModel || "—"} (${driver.vehiclePlate}) · ${driver.name}` : "por atribuir"}
-        </p>
-        <div className="mt-3 h-2 rounded-full bg-[#0A2342]/10 overflow-hidden">
-          <div className="h-full bg-[#0D5E3E] transition-all" style={{ width: `${routeProgress(current)}%` }} />
-        </div>
-        <p className="text-xs text-[#0A2342]/50 mt-1">
-          {current.stops.filter((s) => s.done).length}/{current.stops.length} paragens concluídas
         </p>
       </div>
     </div>
@@ -398,7 +324,6 @@ function History() {
 
 function Certs() {
   const certs = useStoreData(getCertificates);
-  const user = useUser();
   return (
     <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm">
       <h1 className="text-2xl font-black">Certificados</h1>
@@ -416,7 +341,7 @@ function Certs() {
             <h3 className="mt-3 font-bold">{c.month}</h3>
             <p className="text-sm text-[#0A2342]/60">Score: {c.score}/100</p>
             <button
-              onClick={() => user && downloadCertificatePdf(c, user)}
+              onClick={() => alert(`Download do certificado de ${c.month} (simulado)`)}
               className="mt-4 w-full bg-[#0D5E3E] text-white font-semibold py-2 rounded-xl hover:bg-[#1A8B5C] transition"
             >
               Download PDF
