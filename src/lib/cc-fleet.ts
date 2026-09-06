@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getUser, isAdmin, type CCSchedule } from "./cc-auth";
+import { getUser, isAdmin, markScheduleCollected, type CCSchedule } from "./cc-auth";
+import { MOZ_BOUNDS, PROVINCES } from "@/data/moz-provinces";
 
 export type CCDriver = {
   id: string;
@@ -20,6 +21,7 @@ export type CCStop = {
   lat: number;
   lng: number;
   scheduleId?: string;
+  province?: string;
   done: boolean;
 };
 
@@ -43,9 +45,20 @@ export type CCRoute = {
 const DRIVERS_KEY = "cc:drivers";
 const ROUTES_KEY = "cc:routes";
 
-// Área operacional (Maputo) usada para o mapa de rastreamento
-export const MAPUTO_BOUNDS = { minLat: -26.0, maxLat: -25.87, minLng: 32.53, maxLng: 32.66 };
+// Área operacional: todo o território de Moçambique
+export { MOZ_BOUNDS };
 const DEPOT = { lat: -25.9655, lng: 32.5832 };
+
+/** Deduz a província a partir do texto da morada e devolve coordenadas próximas da capital. */
+export function locate(address: string, seed: number) {
+  const a = (address || "").toLowerCase();
+  const match =
+    PROVINCES.find((p) => a.includes(p.name.toLowerCase())) ??
+    PROVINCES.find((p) => a.includes(p.capital.toLowerCase())) ??
+    PROVINCES.find((p) => p.name === "Cidade de Maputo")!;
+  const j = (n: number) => ((Math.sin(seed * 9301 + n * 49297) * 43758.5453) % 1) * 0.35;
+  return { lat: match.center.lat + j(1), lng: match.center.lng + j(2), province: match.name };
+}
 
 function safeGet<T>(k: string, fb: T): T {
   if (typeof window === "undefined") return fb;
@@ -100,14 +113,6 @@ export function getRoutes(): CCRoute[] {
   return safeGet<CCRoute[]>(ROUTES_KEY, []);
 }
 
-function randomPoint(seed: number) {
-  const r = (n: number) => (Math.sin(seed * 9301 + n * 49297) * 43758.5453) % 1;
-  return {
-    lat: MAPUTO_BOUNDS.minLat + Math.abs(r(1)) * (MAPUTO_BOUNDS.maxLat - MAPUTO_BOUNDS.minLat),
-    lng: MAPUTO_BOUNDS.minLng + Math.abs(r(2)) * (MAPUTO_BOUNDS.maxLng - MAPUTO_BOUNDS.minLng),
-  };
-}
-
 export function createRoute(input: {
   name: string;
   zone: string;
@@ -124,7 +129,7 @@ export function createRoute(input: {
     address: s.location,
     scheduleId: s.id,
     done: false,
-    ...randomPoint(i + 1 + list.length * 7),
+    ...locate(s.location, i + 1 + list.length * 7),
   }));
   list.unshift({
     id: crypto.randomUUID(),
@@ -156,7 +161,10 @@ export function finishRoute(id: string) {
     ...r,
     status: "Concluída",
     finishedAt: new Date().toISOString(),
-    stops: r.stops.map((s) => ({ ...s, done: true })),
+    stops: r.stops.map((s) => {
+      if (!s.done && s.scheduleId) markScheduleCollected(s.scheduleId);
+      return { ...s, done: true };
+    }),
     position: { ...DEPOT },
   }));
 }
@@ -164,6 +172,8 @@ export function finishRoute(id: string) {
 export function completeStop(routeId: string, stopId: string) {
   requireAdmin();
   update(routeId, (r) => {
+    const target0 = r.stops.find((s) => s.id === stopId);
+    if (target0?.scheduleId) markScheduleCollected(target0.scheduleId);
     const stops = r.stops.map((s) => (s.id === stopId ? { ...s, done: true } : s));
     const stop = stops.find((s) => s.id === stopId);
     return {
@@ -192,7 +202,8 @@ export function tickTracking() {
     const dLng = target.lng - r.position.lng;
     const dist = Math.hypot(dLat, dLng);
     changed = true;
-    if (dist < 0.0009) {
+    if (dist < 0.05) {
+      if (target.scheduleId) markScheduleCollected(target.scheduleId);
       const stops = r.stops.map((s) => (s.id === target.id ? { ...s, done: true } : s));
       return {
         ...r,

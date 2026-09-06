@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { getSchedules, useStoreData } from "@/lib/cc-auth";
 import {
-  MAPUTO_BOUNDS,
   addDriver,
   completeStop,
   createRoute,
@@ -16,6 +15,7 @@ import {
   useLiveTracking,
   type CCRoute,
 } from "@/lib/cc-fleet";
+import { MozMap } from "./MozMap";
 
 const STATUS_COLOR: Record<CCRoute["status"], string> = {
   Planeada: "bg-[#F5A623]/20 text-[#8a5b00]",
@@ -314,52 +314,5 @@ export function RoutesPanel() {
 }
 
 export function TrackingMap({ route }: { route: CCRoute }) {
-  const { minLat, maxLat, minLng, maxLng } = MAPUTO_BOUNDS;
-  const x = (lng: number) => ((lng - minLng) / (maxLng - minLng)) * 100;
-  const y = (lat: number) => ((maxLat - lat) / (maxLat - minLat)) * 100;
-  const path = route.stops.map((s) => `${x(s.lng)},${y(s.lat)}`).join(" ");
-
-  return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-black">Rastreamento — {route.code}</h3>
-        <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_COLOR[route.status]}`}>{route.status}</span>
-      </div>
-      <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-[#EAF3EE] border border-[#0A2342]/10">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <g key={i} stroke="#0A2342" strokeOpacity="0.06" strokeWidth="0.3">
-              <line x1={(i + 1) * 10} y1="0" x2={(i + 1) * 10} y2="100" />
-              <line x1="0" y1={(i + 1) * 10} x2="100" y2={(i + 1) * 10} />
-            </g>
-          ))}
-          {route.stops.length > 1 && (
-            <polyline points={path} fill="none" stroke="#0D5E3E" strokeOpacity="0.45" strokeWidth="0.8" strokeDasharray="2 1.5" />
-          )}
-        </svg>
-        {route.stops.map((s, i) => (
-          <div
-            key={s.id}
-            title={`${s.client} — ${s.address}`}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full grid place-items-center text-[10px] font-black shadow ${
-              s.done ? "bg-[#0D5E3E] text-white" : "bg-white text-[#0A2342] border border-[#0A2342]/20"
-            }`}
-            style={{ left: `${x(s.lng)}%`, top: `${y(s.lat)}%` }}
-          >
-            {i + 1}
-          </div>
-        ))}
-        <div
-          className="absolute -translate-x-1/2 -translate-y-1/2 text-xl transition-all duration-1000 ease-linear drop-shadow"
-          style={{ left: `${x(route.position.lng)}%`, top: `${y(route.position.lat)}%` }}
-          title="Viatura"
-        >
-          🚛
-        </div>
-      </div>
-      <p className="text-xs text-[#0A2342]/50 mt-2">
-        Posição actualizada a cada 2,5 s enquanto a rota estiver em curso · área operacional Maputo.
-      </p>
-    </div>
-  );
+  return <MozMap route={route} />;
 }
