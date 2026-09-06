@@ -11,7 +11,7 @@ import {
 } from "@/lib/cc-auth";
 import { downloadCertificatePdf } from "@/lib/cc-certificate-pdf";
 import { MozMap } from "@/components/cleanconnect/MozMap";
-import { getRoutesForSchedules, routeProgress, useLiveTracking, driverById } from "@/lib/cc-fleet";
+import { getRoutes, routeProgress, useLiveTracking, driverById } from "@/lib/cc-fleet";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -171,7 +171,7 @@ function TrackingCard() {
   const schedules = useStoreData(getSchedules);
   const mine = schedules.filter((s) => !user || !s.userEmail || s.userEmail === user.email);
   const ids = mine.map((s) => s.id);
-  const routes = useStoreData(getRoutes_).filter((r) => r.stops.some((s) => s.scheduleId && ids.includes(s.scheduleId)));
+  const routes = useStoreData(getRoutes).filter((r) => r.stops.some((s) => s.scheduleId && ids.includes(s.scheduleId)));
   const [sel, setSel] = useState<string | null>(null);
   useLiveTracking(routes.some((r) => r.status === "Em curso"));
 
