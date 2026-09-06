@@ -143,6 +143,14 @@ export function updateScheduleStatus(id: string, status: CCSchedule["status"]) {
   safeSet(SCHED_KEY, list);
   window.dispatchEvent(new Event("cc:data"));
 }
+/** Marca uma recolha como concluída a partir do rastreamento da frota (sem exigir admin). */
+export function markScheduleCollected(id: string) {
+  const list = getSchedules();
+  if (!list.some((s) => s.id === id && s.status !== "Concluído")) return;
+  safeSet(SCHED_KEY, list.map((s) => (s.id === id ? { ...s, status: "Concluído" as const } : s)));
+  window.dispatchEvent(new Event("cc:data"));
+}
+
 export function deleteSchedule(id: string) {
   requireAdmin();
   safeSet(SCHED_KEY, getSchedules().filter((s) => s.id !== id));
