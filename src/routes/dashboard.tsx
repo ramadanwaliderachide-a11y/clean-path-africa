@@ -1,13 +1,35 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  useUser,
-  logout,
-  getSchedules,
-  getCertificates,
-  addSchedule,
-  useStoreData,
-} from "@/lib/cc-auth";
+import { useAuth, logout, useUser } from "@/lib/cc-auth";
+import { supabase } from "@/integrations/supabase/client";
+import LeafletMap from "@/components/cleanconnect/LeafletMap";
+
+type Pickup = {
+  id: string; waste_type: string; qty: string; pickup_date: string; pickup_time: string;
+  location: string; status: string; value: string; lat: number | null; lng: number | null;
+};
+
+function usePickups() {
+  const [list, setList] = useState<Pickup[]>([]);
+  const load = () =>
+    supabase.from("pickups").select("*").order("pickup_date", { ascending: false })
+      .then(({ data }) => setList((data as Pickup[]) ?? []));
+  useEffect(() => { load(); }, []);
+  return { list, reload: load };
+}
+
+function certsFrom(pickups: Pickup[]) {
+  const done = pickups.filter((p) => p.status === "Concluído");
+  const byMonth = new Map<string, number>();
+  done.forEach((p) => {
+    const k = p.pickup_date.slice(0, 7);
+    byMonth.set(k, (byMonth.get(k) ?? 0) + 1);
+  });
+  return [...byMonth.entries()].map(([m, n]) => {
+    const score = Math.min(100, 50 + n * 10);
+    return { id: m, month: m, score, level: score >= 85 ? "Ouro" : score >= 70 ? "Prata" : "Bronze" };
+  });
+}
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -23,22 +45,16 @@ export const Route = createFileRoute("/dashboard")({
 type Tab = "overview" | "schedule" | "history" | "certs" | "settings";
 
 function Dashboard() {
-  const user = useUser();
+  const user = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [navOpen, setNavOpen] = useState(false);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!window.localStorage.getItem("cc:user")) {
-      navigate({ to: "/login" });
-    } else {
-      setReady(true);
-    }
-  }, [navigate]);
+    if (user === null) navigate({ to: "/login" });
+  }, [user, navigate]);
 
-  if (!ready || !user) {
+  if (!user) {
     return (
       <div className="cc-root min-h-screen flex items-center justify-center bg-[#F9FAFB]">
         <p className="text-[#0A2342]/60">A carregar...</p>
@@ -65,6 +81,11 @@ function Dashboard() {
             <Link to="/" className="font-black text-lg text-[#0D5E3E]">CleanConnect</Link>
           </div>
           <div className="flex items-center gap-3">
+            {user.isAdmin && (
+              <Link to="/admin" className="text-sm font-bold bg-[#F5A623] text-[#0A2342] px-3 py-1.5 rounded-lg">
+                Painel Admin
+              </Link>
+            )}
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0D5E3E] to-[#0A2342] text-white text-sm font-black flex items-center justify-center border-2 border-[#F5A623]">
                 {user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
@@ -72,8 +93,8 @@ function Dashboard() {
               <span className="text-sm font-semibold">{user.name}</span>
             </div>
             <button
-              onClick={() => {
-                logout();
+              onClick={async () => {
+                await logout();
                 navigate({ to: "/login" });
               }}
               className="text-sm font-semibold text-[#0A2342]/70 hover:text-[#0D5E3E]"
@@ -118,10 +139,11 @@ function Dashboard() {
 }
 
 function Overview() {
-  const schedules = useStoreData(getSchedules);
-  const certs = useStoreData(getCertificates);
-  const score = 78;
-  const next = schedules.find((s) => s.status === "Pendente") ?? schedules[0];
+  const { list: schedules } = usePickups();
+  const certs = certsFrom(schedules);
+  const done = schedules.filter((s) => s.status === "Concluído").length;
+  const score = Math.min(100, 40 + done * 8);
+  const next = schedules.find((s) => s.status === "Pendente");
 
   return (
     <div className="space-y-6">
@@ -133,11 +155,11 @@ function Overview() {
           <div>
             <p className="text-sm text-[#0A2342]/60">Score Verde</p>
             <p className="text-2xl font-black text-[#0D5E3E]">{score}/100</p>
-            <p className="text-xs text-[#1A8B5C] font-semibold">Nível Prata</p>
+            <p className="text-xs text-[#1A8B5C] font-semibold">Nível {score >= 85 ? "Ouro" : score >= 70 ? "Prata" : "Bronze"}</p>
           </div>
         </div>
 
-        <StatCard label="Próxima Recolha" value={next ? `${next.date}` : "—"} sub={next?.time ?? ""} icon="🚛" />
+        <StatCard label="Próxima Recolha" value={next ? next.pickup_date : "—"} sub={next?.pickup_time ?? ""} icon="🚛" />
         <StatCard label="Total de Recolhas" value={String(schedules.length)} sub="este ano" icon="♻️" />
         <StatCard label="Certificados" value={String(certs.length)} sub="emitidos" icon="📜" />
       </div>
@@ -198,14 +220,25 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
     notes: "",
   });
   const [msg, setMsg] = useState<string | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
+  const user = useUser();
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.qty || !f.date || !f.time || !f.location) {
       setMsg("Preencha quantidade, data, hora e localização.");
       return;
     }
-    addSchedule(f);
+    if (!pos) {
+      setMsg("Marque o local da recolha no mapa.");
+      return;
+    }
+    if (!user) return;
+    const { error } = await supabase.from("pickups").insert({
+      user_id: user.id, waste_type: f.type, qty: f.qty, pickup_date: f.date, pickup_time: f.time,
+      location: f.location, notes: f.notes || null, lat: pos.lat, lng: pos.lng,
+    });
+    if (error) { setMsg("Erro: " + error.message); return; }
     setMsg("Recolha agendada! ✅");
     setTimeout(onDone, 800);
   };
@@ -227,6 +260,20 @@ function ScheduleForm({ onDone }: { onDone: () => void }) {
         <Input label="Hora" type="time" value={f.time} onChange={(v) => setF({ ...f, time: v })} />
         <Input label="Localização" placeholder="ex.: Maputo, Polana" value={f.location} onChange={(v) => setF({ ...f, location: v })} />
         <Input label="Observações" placeholder="opcional" value={f.notes} onChange={(v) => setF({ ...f, notes: v })} />
+
+        <div className="md:col-span-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-[#0A2342]/80">Local no mapa (toque para marcar)</span>
+            <button
+              type="button"
+              onClick={() => navigator.geolocation?.getCurrentPosition((p) => setPos({ lat: p.coords.latitude, lng: p.coords.longitude }))}
+              className="text-xs font-semibold text-[#0D5E3E] underline"
+            >
+              Usar a minha localização
+            </button>
+          </div>
+          <LeafletMap height={280} picked={pos} onPick={(lat, lng) => setPos({ lat, lng })} />
+        </div>
 
         <div className="md:col-span-2">
           {msg && (
@@ -281,7 +328,7 @@ function Select(props: { label: string; value: string; onChange: (v: string) => 
 }
 
 function History() {
-  const schedules = useStoreData(getSchedules);
+  const { list: schedules } = usePickups();
   return (
     <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm">
       <h1 className="text-2xl font-black">Histórico de Recolhas</h1>
@@ -299,8 +346,8 @@ function History() {
           <tbody>
             {schedules.map((s) => (
               <tr key={s.id} className="border-b last:border-0">
-                <td className="py-3 pr-3">{s.date} {s.time && `· ${s.time}`}</td>
-                <td className="py-3 pr-3">{s.type}</td>
+                <td className="py-3 pr-3">{s.pickup_date} · {s.pickup_time}</td>
+                <td className="py-3 pr-3">{s.waste_type}</td>
                 <td className="py-3 pr-3">{s.qty}</td>
                 <td className="py-3 pr-3">
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${
@@ -323,11 +370,13 @@ function History() {
 }
 
 function Certs() {
-  const certs = useStoreData(getCertificates);
+  const { list } = usePickups();
+  const certs = certsFrom(list);
   return (
     <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm">
       <h1 className="text-2xl font-black">Certificados</h1>
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {certs.length === 0 && <p className="text-sm text-[#0A2342]/50">Os certificados aparecem após recolhas concluídas.</p>}
         {certs.map((c) => (
           <div key={c.id} className="border border-[#0A2342]/10 rounded-2xl p-5">
             <div className="flex items-center justify-between">
@@ -365,7 +414,7 @@ function Settings() {
         <Row label="Telefone" value={user.phone || "—"} />
       </div>
       <p className="text-xs text-[#0A2342]/50 mt-6">
-        Conta demonstrativa armazenada localmente no seu dispositivo.
+        Conta guardada de forma segura na nuvem.
       </p>
     </div>
   );

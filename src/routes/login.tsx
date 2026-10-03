@@ -1,12 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { login, register } from "@/lib/cc-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       { title: "Entrar — CleanConnect" },
       { name: "description", content: "Aceda à sua conta CleanConnect para agendar recolhas e ver o seu Score Verde." },
+      { property: "og:title", content: "Entrar — CleanConnect" },
+      { property: "og:description", content: "Aceda à sua conta CleanConnect." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: LoginPage,
@@ -17,27 +21,46 @@ function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const onChange = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setInfo(null);
     setLoading(true);
     try {
       if (mode === "login") {
         if (!form.email || !form.password) throw new Error("Preencha email e palavra-passe");
-        login(form.email.trim(), form.password);
+        const { error } = await supabase.auth.signInWithPassword({
+          email: form.email.trim(),
+          password: form.password,
+        });
+        if (error) throw new Error(error.message.includes("confirmed") ? "Confirme o seu email primeiro." : "Credenciais inválidas");
+        navigate({ to: "/dashboard" });
       } else {
         if (!form.name.trim()) throw new Error("Nome é obrigatório");
         if (!/^\S+@\S+\.\S+$/.test(form.email)) throw new Error("Email inválido");
         if (form.password.length < 6) throw new Error("A palavra-passe deve ter pelo menos 6 caracteres");
         if (form.password !== form.confirm) throw new Error("As palavras-passe não coincidem");
-        register({ name: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password });
+        const { data, error } = await supabase.auth.signUp({
+          email: form.email.trim(),
+          password: form.password,
+          options: {
+            emailRedirectTo: window.location.origin + "/dashboard",
+            data: { full_name: form.name.trim(), phone: form.phone },
+          },
+        });
+        if (error) throw new Error(error.message);
+        if (data.session) navigate({ to: "/dashboard" });
+        else {
+          setInfo("Conta criada! Verifique o seu email e clique no link de confirmação.");
+          setMode("login");
+        }
       }
-      navigate({ to: "/dashboard" });
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -54,22 +77,17 @@ function LoginPage() {
         </div>
 
         <div className="flex bg-[#F5F7FA] rounded-xl p-1 mb-6">
-          <button
-            onClick={() => setMode("login")}
-            className={`flex-1 py-2 rounded-lg font-semibold transition ${
-              mode === "login" ? "bg-white shadow text-[#0D5E3E]" : "text-[#0A2342]/60"
-            }`}
-          >
-            Entrar
-          </button>
-          <button
-            onClick={() => setMode("register")}
-            className={`flex-1 py-2 rounded-lg font-semibold transition ${
-              mode === "register" ? "bg-white shadow text-[#0D5E3E]" : "text-[#0A2342]/60"
-            }`}
-          >
-            Registar
-          </button>
+          {(["login", "register"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`flex-1 py-2 rounded-lg font-semibold transition ${
+                mode === m ? "bg-white shadow text-[#0D5E3E]" : "text-[#0A2342]/60"
+              }`}
+            >
+              {m === "login" ? "Entrar" : "Registar"}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={submit} className="space-y-3">
@@ -86,6 +104,7 @@ function LoginPage() {
           )}
 
           {err && <p className="text-sm text-red-600 bg-red-50 rounded-lg p-2">{err}</p>}
+          {info && <p className="text-sm text-green-700 bg-green-50 rounded-lg p-2">{info}</p>}
 
           <button
             type="submit"
@@ -96,10 +115,7 @@ function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-[#0A2342]/50 mt-6">
-          Os dados são guardados localmente no seu dispositivo (demo).
-        </p>
-        <p className="text-center mt-4">
+        <p className="text-center mt-6">
           <Link to="/app" className="text-sm text-[#0D5E3E] font-semibold hover:underline">
             ← Voltar à plataforma
           </Link>
