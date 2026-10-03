@@ -1,144 +1,47 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-export type CCUser = { name: string; email: string; phone?: string };
-export type CCSchedule = {
-  id: string;
-  type: string;
-  qty: string;
-  date: string;
-  time: string;
-  location: string;
-  notes?: string;
-  status: "Pendente" | "Concluído" | "Cancelado";
-  value: string;
-  createdAt: string;
-};
-export type CCCertificate = {
-  id: string;
-  month: string;
-  score: number;
-  level: "Bronze" | "Prata" | "Ouro";
-};
+export type CCUser = { id: string; name: string; email: string; phone?: string; isAdmin: boolean };
 
-const USER_KEY = "cc:user";
-const USERS_KEY = "cc:users";
-const SCHED_KEY = "cc:schedules";
-const CERT_KEY = "cc:certs";
-
-type StoredUser = CCUser & { password: string };
-
-function safeGet<T>(k: string, fb: T): T {
-  if (typeof window === "undefined") return fb;
-  try {
-    const v = window.localStorage.getItem(k);
-    return v ? (JSON.parse(v) as T) : fb;
-  } catch {
-    return fb;
-  }
-}
-function safeSet<T>(k: string, v: T) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(k, JSON.stringify(v));
-  } catch {}
+async function loadUser(): Promise<CCUser | null> {
+  const { data } = await supabase.auth.getUser();
+  const u = data.user;
+  if (!u) return null;
+  const [{ data: profile }, { data: roles }] = await Promise.all([
+    supabase.from("profiles").select("full_name, phone").eq("id", u.id).maybeSingle(),
+    supabase.from("user_roles").select("role").eq("user_id", u.id),
+  ]);
+  return {
+    id: u.id,
+    email: u.email ?? "",
+    name: profile?.full_name || (u.user_metadata?.full_name as string) || u.email || "Utilizador",
+    phone: profile?.phone ?? undefined,
+    isAdmin: !!roles?.some((r) => r.role === "admin"),
+  };
 }
 
-export function getUser(): CCUser | null {
-  return safeGet<CCUser | null>(USER_KEY, null);
-}
-
-export function login(email: string, password: string): CCUser {
-  const users = safeGet<StoredUser[]>(USERS_KEY, []);
-  const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
-  if (!u || u.password !== password) throw new Error("Credenciais inválidas");
-  const pub: CCUser = { name: u.name, email: u.email, phone: u.phone };
-  safeSet(USER_KEY, pub);
-  window.dispatchEvent(new Event("cc:auth"));
-  return pub;
-}
-
-export function register(input: CCUser & { password: string }): CCUser {
-  const users = safeGet<StoredUser[]>(USERS_KEY, []);
-  if (users.some((x) => x.email.toLowerCase() === input.email.toLowerCase()))
-    throw new Error("Já existe uma conta com este email");
-  users.push(input);
-  safeSet(USERS_KEY, users);
-  const pub: CCUser = { name: input.name, email: input.email, phone: input.phone };
-  safeSet(USER_KEY, pub);
-  ensureSeed();
-  window.dispatchEvent(new Event("cc:auth"));
-  return pub;
-}
-
-export function logout() {
-  if (typeof window !== "undefined") window.localStorage.removeItem(USER_KEY);
-  window.dispatchEvent(new Event("cc:auth"));
-}
-
-export function useUser() {
-  const [user, setUser] = useState<CCUser | null>(null);
+/** Returns undefined while loading, null when signed out. */
+export function useAuth() {
+  const [user, setUser] = useState<CCUser | null | undefined>(undefined);
   useEffect(() => {
-    setUser(getUser());
-    const h = () => setUser(getUser());
-    window.addEventListener("cc:auth", h);
-    window.addEventListener("storage", h);
+    let alive = true;
+    const refresh = () => loadUser().then((u) => alive && setUser(u));
+    refresh();
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") refresh();
+    });
     return () => {
-      window.removeEventListener("cc:auth", h);
-      window.removeEventListener("storage", h);
+      alive = false;
+      sub.subscription.unsubscribe();
     };
   }, []);
   return user;
 }
 
-// ----- Schedules -----
-export function getSchedules(): CCSchedule[] {
-  return safeGet<CCSchedule[]>(SCHED_KEY, []);
-}
-export function addSchedule(s: Omit<CCSchedule, "id" | "status" | "value" | "createdAt">) {
-  const list = getSchedules();
-  list.unshift({
-    ...s,
-    id: crypto.randomUUID(),
-    status: "Pendente",
-    value: "250 MZN",
-    createdAt: new Date().toISOString(),
-  });
-  safeSet(SCHED_KEY, list);
-  window.dispatchEvent(new Event("cc:data"));
-}
-export function getCertificates(): CCCertificate[] {
-  return safeGet<CCCertificate[]>(CERT_KEY, []);
+export function useUser() {
+  return useAuth() ?? null;
 }
 
-function ensureSeed() {
-  if (getSchedules().length === 0) {
-    safeSet<CCSchedule[]>(SCHED_KEY, [
-      { id: "s1", type: "Resíduos sólidos", qty: "120 kg", date: "2026-06-10", time: "09:00", location: "Maputo, Polana", status: "Concluído", value: "300 MZN", createdAt: "" },
-      { id: "s2", type: "Recicláveis", qty: "60 kg", date: "2026-06-04", time: "14:30", location: "Maputo, Polana", status: "Concluído", value: "150 MZN", createdAt: "" },
-      { id: "s3", type: "Orgânicos", qty: "40 kg", date: "2026-05-28", time: "08:00", location: "Maputo, Polana", status: "Cancelado", value: "0 MZN", createdAt: "" },
-    ]);
-  }
-  if (getCertificates().length === 0) {
-    safeSet<CCCertificate[]>(CERT_KEY, [
-      { id: "c1", month: "Junho 2026", score: 78, level: "Prata" },
-      { id: "c2", month: "Maio 2026", score: 72, level: "Prata" },
-      { id: "c3", month: "Abril 2026", score: 65, level: "Bronze" },
-    ]);
-  }
-}
-
-export function useStoreData<T>(fn: () => T): T {
-  const [v, setV] = useState<T>(fn);
-  useEffect(() => {
-    setV(fn());
-    const h = () => setV(fn());
-    window.addEventListener("cc:data", h);
-    window.addEventListener("storage", h);
-    return () => {
-      window.removeEventListener("cc:data", h);
-      window.removeEventListener("storage", h);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return v;
+export async function logout() {
+  await supabase.auth.signOut();
 }
